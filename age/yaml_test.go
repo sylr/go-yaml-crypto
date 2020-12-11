@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -31,7 +30,12 @@ func TestSimpleDataString(t *testing.T) {
 	}
 
 	// Parse key files for recipients
-	keyFile.Seek(0, io.SeekStart)
+	_, err = keyFile.Seek(0, io.SeekStart)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	recs, err := age.ParseRecipients(keyFile)
 
 	if err != nil {
@@ -56,10 +60,10 @@ func TestSimpleDataString(t *testing.T) {
 
 	str := string(bytes)
 
-	if strings.Index(str, armor.Header) == -1 || strings.Index(str, armor.Footer) == -1 {
-		t.Errorf("Armored Age header or footer missing in yaml:\n%s", str)
-		t.FailNow()
-	}
+	Convey("Check age armor header and footer", t, FailureHalts, func() {
+		So(str, ShouldContainSubstring, armor.Header)
+		So(str, ShouldContainSubstring, armor.Footer)
+	})
 
 	// Unmarshal
 	d2 := struct {
@@ -99,7 +103,12 @@ func TestSimpleDataArmoredString(t *testing.T) {
 	}
 
 	// Parse key files for recipients
-	keyFile.Seek(0, io.SeekStart)
+	_, err = keyFile.Seek(0, io.SeekStart)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	recs, err := age.ParseRecipients(keyFile)
 
 	if err != nil {
@@ -170,7 +179,11 @@ func TestAnonymousStruct(t *testing.T) {
 	// Decode
 	w := Wrapper{Value: &d1, Identities: ids}
 	decoder := yaml.NewDecoder(yamlFile)
-	decoder.Decode(&w)
+	err = decoder.Decode(&w)
+
+	Convey("Decoding should not return error", t, FailureHalts, func() {
+		So(err, ShouldBeNil)
+	})
 
 	// Check that the decoded yaml has the lipsum key
 	if _, ok := d1["lipsum"]; !ok {
@@ -216,7 +229,12 @@ func TestComplexData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keyFile.Seek(0, io.SeekStart)
+	_, err = keyFile.Seek(0, io.SeekStart)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	recs, err := age.ParseRecipients(keyFile)
 
 	if err != nil {

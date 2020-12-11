@@ -87,7 +87,12 @@ func (w Wrapper) resolve(node *yaml.Node) (*yaml.Node, error) {
 	}
 
 	var armoredString string
-	node.Decode(&armoredString)
+	err := node.Decode(&armoredString)
+
+	if err != nil {
+		return nil, err
+	}
+
 	armoredStringReader := strings.NewReader(armoredString)
 	armoredReader := armor.NewReader(armoredStringReader)
 	decryptedReader, err := age.Decrypt(armoredReader, w.Identities...)
@@ -97,7 +102,11 @@ func (w Wrapper) resolve(node *yaml.Node) (*yaml.Node, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(decryptedReader)
+	_, err = buf.ReadFrom(decryptedReader)
+
+	if err != nil {
+		return nil, err
+	}
 
 	tempTag := node.Tag
 	node.SetString(buf.String())
@@ -147,11 +156,16 @@ func (a ArmoredString) MarshalYAML() (interface{}, error) {
 		return nil, fmt.Errorf("age: %w", err)
 	}
 
-	io.WriteString(w, a.Value)
+	_, err = io.WriteString(w, a.Value)
+
+	if err != nil {
+		return nil, err
+	}
+
 	w.Close()
 	armorWriter.Close()
 
-	node.Value = string(buf.Bytes())
+	node.Value = buf.String()
 
 	return &node, nil
 }
