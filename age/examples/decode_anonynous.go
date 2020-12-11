@@ -46,11 +46,14 @@ database_password: !crypto/age |
 		panic(err)
 	}
 
-	r, err := yaml.Marshal(&node)
+	buf = bytes.NewBuffer(nil)
+	encoder := yaml.NewEncoder(buf)
+	encoder.SetIndent(2)
+	err = encoder.Encode(&node)
 
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("%s", r)
+	fmt.Printf("%s", buf.String())
 }

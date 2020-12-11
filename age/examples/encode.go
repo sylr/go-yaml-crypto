@@ -32,12 +32,13 @@ func main() {
 	}
 
 	buf := bytes.NewBuffer(nil)
-	decoder := yaml.NewEncoder(buf)
-	err = decoder.Encode(&node)
+	encoder := yaml.NewEncoder(buf)
+	encoder.SetIndent(2)
+	err = encoder.Encode(&node)
 
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("%+v", buf.String())
+	fmt.Printf("%s", buf.String())
 }
