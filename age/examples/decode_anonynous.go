@@ -52,5 +52,5 @@ database_password: !crypto/age |
 		panic(err)
 	}
 
-	fmt.Printf("%s\n", r)
+	fmt.Printf("%s", r)
 }

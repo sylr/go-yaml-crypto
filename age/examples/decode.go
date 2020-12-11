@@ -27,9 +27,9 @@ database_password: !crypto/age |
 	buf := bytes.NewBufferString(yamlString)
 
 	node := struct {
-		DatabaseLogin    string `yaml:"database_login"`
-		DatabaseHost     string `yaml:"database_host"`
-		DatabasePassword string `yaml:"database_password"`
+		DatabaseLogin    string                `yaml:"database_login"`
+		DatabaseHost     string                `yaml:"database_host"`
+		DatabasePassword ageyaml.ArmoredString `yaml:"database_password"`
 	}{}
 
 	id, err := age.NewScryptIdentity("point-adjust-member-tip-tiger-limb-honey-prefer-copy-issue")
@@ -55,5 +55,5 @@ database_password: !crypto/age |
 		panic(err)
 	}
 
-	fmt.Printf("%s\n", r)
+	fmt.Printf("%s", r)
 }
