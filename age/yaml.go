@@ -2,35 +2,57 @@ package age
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
-	yamlv3 "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	// YAMLTag ...
+	// YAMLTag tag that is used to identify data to crypt/decrypt
 	YAMLTag = "!crypto/age"
 )
 
 // Wrapper is a struct that allows to decrypt crypted armored data in YAML as long
-// that the data is tagged with `!crypto/age`.
+// that the data is tagged with "!crypto/age".
 //
-//     agedata: !cripto/age |
+//     database_login: mylogin
+//     database_password: !crypto/age |
 //       -----BEGIN AGE ENCRYPTED FILE-----
 //       ...
 //       ...
 //       -----END AGE ENCRYPTED FILE-----
 //
+// Example:
+//
+//     bytes := []byte(...)
+//     node := struct {
+//     	Key1 string `yaml:"key1"`
+//     	Key2 string `yaml:"key2"`
+//     }{}
+//     w := Wrapper{
+//     	Value:      &node,
+//     	Identities: []age.Indentity{...},
+//     }
+//     decoder := yaml.NewDecoder(in)
+//     err := decoder.Decode(&w)
+//
+// If you intend to only display the YAML data with unencryted values you should
+// use `&yaml.Node{}` as `Wrapper.Value` so you can marshal it later with comments.
+//
 type Wrapper struct {
-	Value      interface{}
+	// Value holds the struct that will be decrypted with the Identities.
+	Value interface{}
+	// Identities that will be used for decrypting.
 	Identities []age.Identity
 }
 
-// UnmarshalYAML ...
-func (w Wrapper) UnmarshalYAML(value *yamlv3.Node) error {
+// UnmarshalYAML takes yaml.Node and recursively decrypt data marked with the
+// !crypto/age YAML tag.
+func (w Wrapper) UnmarshalYAML(value *yaml.Node) error {
 	resolved, err := w.resolve(value)
 	if err != nil {
 		return err
@@ -39,9 +61,9 @@ func (w Wrapper) UnmarshalYAML(value *yamlv3.Node) error {
 	return resolved.Decode(w.Value)
 }
 
-func (w Wrapper) resolve(node *yamlv3.Node) (*yamlv3.Node, error) {
+func (w Wrapper) resolve(node *yaml.Node) (*yaml.Node, error) {
 	// Recurse into sequence types
-	if node.Kind == yamlv3.SequenceNode || node.Kind == yamlv3.MappingNode {
+	if node.Kind == yaml.SequenceNode || node.Kind == yaml.MappingNode {
 		var err error
 
 		if len(node.Content) > 0 {
@@ -71,7 +93,7 @@ func (w Wrapper) resolve(node *yamlv3.Node) (*yamlv3.Node, error) {
 	decryptedReader, err := age.Decrypt(armoredReader, w.Identities...)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("age: %w", err)
 	}
 
 	buf := new(bytes.Buffer)
@@ -84,21 +106,25 @@ func (w Wrapper) resolve(node *yamlv3.Node) (*yamlv3.Node, error) {
 	return node, nil
 }
 
-// ArmoredString is a struct holding the string to crypt and the intended recipients
-// of the encrypted output.
+// ArmoredString is a struct holding the string to encrypt and the intended recipients.
 type ArmoredString struct {
-	String     string
+	Value      string
 	Recipients []age.Recipient
 }
 
-// UnmarshalYAML ...
-func (a *ArmoredString) UnmarshalYAML(value *yamlv3.Node) error {
-	a.String = value.Value
+// String implements the Stringer interface.
+func (a *ArmoredString) String() string {
+	return a.Value
+}
+
+// UnmarshalYAML pushes the yaml.Node.Value in the ArmoredString.Value.
+func (a *ArmoredString) UnmarshalYAML(value *yaml.Node) error {
+	a.Value = value.Value
 
 	return nil
 }
 
-// MarshalYAML ...
+// MarshalYAML encrypts the ArmoredString and marshals it to YAML
 func (a ArmoredString) MarshalYAML() (interface{}, error) {
 	buf := &bytes.Buffer{}
 	armorWriter := armor.NewWriter(buf)
@@ -106,15 +132,15 @@ func (a ArmoredString) MarshalYAML() (interface{}, error) {
 	w, err := age.Encrypt(armorWriter, a.Recipients...)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("age: %w", err)
 	}
 
-	io.WriteString(w, string(a.String))
+	io.WriteString(w, a.Value)
 	w.Close()
 	armorWriter.Close()
 
-	node := yamlv3.Node{
-		Kind:  yamlv3.ScalarNode,
+	node := yaml.Node{
+		Kind:  yaml.ScalarNode,
 		Tag:   YAMLTag,
 		Value: string(buf.Bytes()),
 	}
@@ -122,15 +148,15 @@ func (a ArmoredString) MarshalYAML() (interface{}, error) {
 	return &node, nil
 }
 
-// EncryptYAML takes a Node and recursively marshal the Values.
-func EncryptYAML(recipients []age.Recipient, node *yamlv3.Node) (*yamlv3.Node, error) {
+// MarshalYAML takes a *yaml.Node and []age.Recipient and recursively encrypt/marshal the Values.
+func MarshalYAML(node *yaml.Node, recipients []age.Recipient) (*yaml.Node, error) {
 	// Recurse into sequence types
-	if node.Kind == yamlv3.SequenceNode || node.Kind == yamlv3.MappingNode {
+	if node.Kind == yaml.SequenceNode || node.Kind == yaml.MappingNode {
 		var err error
 
 		if len(node.Content) > 0 {
 			for i := range node.Content {
-				node.Content[i], err = EncryptYAML(recipients, node.Content[i])
+				node.Content[i], err = MarshalYAML(node.Content[i], recipients)
 				if err != nil {
 					return nil, err
 				}
@@ -144,8 +170,8 @@ func EncryptYAML(recipients []age.Recipient, node *yamlv3.Node) (*yamlv3.Node, e
 		return node, nil
 	}
 
-	armoredString := ArmoredString{String: node.Value, Recipients: recipients}
+	armoredString := ArmoredString{Value: node.Value, Recipients: recipients}
 	nodeInterface, err := armoredString.MarshalYAML()
 
-	return nodeInterface.(*yamlv3.Node), err
+	return nodeInterface.(*yaml.Node), err
 }
