@@ -10,4 +10,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 )
 
-replace filippo.io/age => github.com/sylr/age v1.0.0-beta5.0.20201126225131-a495df083bec
+replace (
+	filippo.io/age => github.com/sylr/age v1.0.0-beta5.0.20201126225131-a495df083bec
+	gopkg.in/yaml.v3 => github.com/sylr/go-yaml v0.0.0-20201211202443-be0157e6a8ed
+)
