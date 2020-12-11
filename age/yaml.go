@@ -124,8 +124,20 @@ func (a *ArmoredString) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// MarshalYAML encrypts the ArmoredString and marshals it to YAML
+// MarshalYAML encrypts the ArmoredString and marshals it to YAML. If Recipients
+// is empty then the Value is kept unencrypted.
 func (a ArmoredString) MarshalYAML() (interface{}, error) {
+	node := yaml.Node{
+		Kind: yaml.ScalarNode,
+		Tag:  YAMLTag,
+	}
+
+	// If no recipients then do not encrypt.
+	if len(a.Recipients) == 0 {
+		node.Value = a.Value
+		return &node, nil
+	}
+
 	buf := &bytes.Buffer{}
 	armorWriter := armor.NewWriter(buf)
 
@@ -139,11 +151,7 @@ func (a ArmoredString) MarshalYAML() (interface{}, error) {
 	w.Close()
 	armorWriter.Close()
 
-	node := yaml.Node{
-		Kind:  yaml.ScalarNode,
-		Tag:   YAMLTag,
-		Value: string(buf.Bytes()),
-	}
+	node.Value = string(buf.Bytes())
 
 	return &node, nil
 }
